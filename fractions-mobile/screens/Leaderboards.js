@@ -6,7 +6,7 @@ import {
   Text,
   TouchableOpacity,
   Image,
-  ScrollView,
+  FlatList,
   Dimensions,
   Animated,
   Platform,
@@ -74,11 +74,11 @@ export default function Leaderboard({ navigation }) {
   const loadLeaderboard = async () => {
     try {
       setLoading(true);
-      
+
       // First, get ALL students (no teacher filtering)
-      const { data: studentsData, error: studentsError } = await supabase
-        .from("students")
-        .select(`
+      const { data: studentsData, error: studentsError } = await supabase.from(
+        "students"
+      ).select(`
           id,
           user_id,
           name,
@@ -129,7 +129,8 @@ export default function Leaderboard({ navigation }) {
         });
 
         // Determine current level (highest unlocked level)
-        const maxLevel = completedLevels.size > 0 ? Math.max(...completedLevels) : 1;
+        const maxLevel =
+          completedLevels.size > 0 ? Math.max(...completedLevels) : 1;
         const currentLevel = maxLevel < 3 ? maxLevel + 1 : 3;
 
         // Calculate progress percentage
@@ -200,14 +201,6 @@ export default function Leaderboard({ navigation }) {
     }
   };
 
-  const calculateProgress = (student) => {
-    return student.progress || 0;
-  };
-
-  const calculateTotalStages = (student) => {
-    return student.totalStages || 0;
-  };
-
   const handleStudentPress = (student) => {
     setSelectedStudent(student);
     setModalVisible(true);
@@ -270,79 +263,63 @@ export default function Leaderboard({ navigation }) {
     outputRange: ["0deg", "360deg"],
   });
 
-  const topStudents = students.slice(0, 5);
-  const otherStudents = students.slice(5);
+  const renderStudentCard = ({ item, index }) => {
+    const isTop = index < 5;
 
-  const renderStudentCard = (student, isTop = false) => (
-    <TouchableOpacity
-      key={student.user_id}
-      style={[
-        styles.studentCard,
-        isTop && styles.topStudentCard,
-        student.rank <= 3 && styles.podiumCard,
-      ]}
-      onPress={() => handleStudentPress(student)}
-      activeOpacity={0.8}
-    >
-      {/* Rank badge */}
-      <View
-        style={[
-          styles.rankBadge,
-          { backgroundColor: getRankColor(student.rank) },
-        ]}
-      >
-        <Text style={styles.rankEmoji}>{getRankEmoji(student.rank)}</Text>
-        <Text style={styles.rankText}>{student.rank}</Text>
-      </View>
+    return (
+      <StudentCard
+        student={item}
+        index={index}
+        isTop={isTop}
+        onPress={() => handleStudentPress(item)}
+        getRankColor={getRankColor}
+        getRankEmoji={getRankEmoji}
+        characters={characters}
+      />
+    );
+  };
 
-      {/* Character image */}
-      <View style={styles.characterWrapper}>
-        <Image
-          source={characters[student.selected_character || 0]}
-          style={styles.characterImage}
-        />
-      </View>
-
-      {/* Student info */}
-      <View style={styles.studentInfo}>
-        <Text style={styles.studentName} numberOfLines={1}>
-          {student.full_name || student.username || "Student"}
-        </Text>
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Level</Text>
-            <Text style={styles.statValue}>{student.current_level || 1}</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Stages</Text>
-            <Text style={styles.statValue}>{student.totalStages}</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Score</Text>
-            <Text style={styles.statValue}>{student.total_score || 0}</Text>
-          </View>
-        </View>
-
-        {/* Progress bar */}
-        <View style={styles.progressBarContainer}>
-          <View style={styles.progressBar}>
-            <View
-              style={[
-                styles.progressBarFill,
-                { width: `${student.progress}%` },
-              ]}
-            />
-          </View>
-          <Text style={styles.progressText}>{student.progress}%</Text>
-        </View>
-      </View>
-
-      {/* Arrow indicator */}
-      <Text style={styles.arrowIcon}>→</Text>
-    </TouchableOpacity>
+  const renderSectionHeader = ({ section }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{section.title}</Text>
+      {section.subtitle && (
+        <Text style={styles.sectionSubtitle}>{section.subtitle}</Text>
+      )}
+    </View>
   );
+
+  const renderListHeader = () => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>🌟 Top 5 Champions</Text>
+    </View>
+  );
+
+  const renderAllStudentsHeader = () => {
+    const otherStudentsCount = students.length - 5;
+    if (otherStudentsCount <= 0) return null;
+
+    return (
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>📚 All Students</Text>
+        <Text style={styles.sectionSubtitle}>
+          {otherStudentsCount} more student{otherStudentsCount !== 1 ? "s" : ""}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderListEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>No students yet! 🎓</Text>
+      <Text style={styles.emptySubtext}>Be the first to complete a stage!</Text>
+    </View>
+  );
+
+  const getItemLayout = (data, index) => ({
+    length: verticalScale(120),
+    offset: verticalScale(120) * index,
+    index,
+  });
 
   return (
     <View style={styles.container}>
@@ -397,54 +374,26 @@ export default function Leaderboard({ navigation }) {
 
         {/* Content */}
         <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>
-                  Loading leaderboard... 📊
-                </Text>
-              </View>
-            ) : students.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No students yet! 🎓</Text>
-                <Text style={styles.emptySubtext}>
-                  Be the first to complete a stage!
-                </Text>
-              </View>
-            ) : (
-              <>
-                {/* Top 5 section */}
-                <View style={styles.section}>
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>🌟 Top 5 Champions</Text>
-                  </View>
-                  {topStudents.map((student) =>
-                    renderStudentCard(student, true)
-                  )}
-                </View>
-
-                {/* Other students section */}
-                {otherStudents.length > 0 && (
-                  <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                      <Text style={styles.sectionTitle}>📚 All Students</Text>
-                      <Text style={styles.sectionSubtitle}>
-                        {otherStudents.length} more student
-                        {otherStudents.length !== 1 ? "s" : ""}
-                      </Text>
-                    </View>
-                    {otherStudents.map((student) =>
-                      renderStudentCard(student, false)
-                    )}
-                  </View>
-                )}
-              </>
-            )}
-          </ScrollView>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading leaderboard... 📊</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={students}
+              keyExtractor={(item) => item.user_id || item.id}
+              renderItem={renderStudentCard}
+              ListHeaderComponent={renderListHeader}
+              ListEmptyComponent={renderListEmpty}
+              contentContainerStyle={styles.flatListContent}
+              showsVerticalScrollIndicator={false}
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              windowSize={10}
+              removeClippedSubviews={true}
+              getItemLayout={getItemLayout}
+            />
+          )}
         </Animated.View>
 
         {/* Student detail modal */}
@@ -605,6 +554,118 @@ export default function Leaderboard({ navigation }) {
   );
 }
 
+// Separate component for student card with animation
+function StudentCard({
+  student,
+  index,
+  isTop,
+  onPress,
+  getRankColor,
+  getRankEmoji,
+  characters,
+}) {
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      tension: 50,
+      friction: 7,
+      delay: index * 50,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onPress();
+    });
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity
+        style={[
+          styles.studentCard,
+          isTop && styles.topStudentCard,
+          student.rank <= 3 && styles.podiumCard,
+        ]}
+        onPress={handlePress}
+        activeOpacity={0.8}
+      >
+        {/* Rank badge */}
+        <View
+          style={[
+            styles.rankBadge,
+            { backgroundColor: getRankColor(student.rank) },
+          ]}
+        >
+          <Text style={styles.rankEmoji}>{getRankEmoji(student.rank)}</Text>
+          <Text style={styles.rankText}>{student.rank}</Text>
+        </View>
+
+        {/* Character image */}
+        <View style={styles.characterWrapper}>
+          <Image
+            source={characters[student.selected_character || 0]}
+            style={styles.characterImage}
+          />
+        </View>
+
+        {/* Student info */}
+        <View style={styles.studentInfo}>
+          <Text style={styles.studentName} numberOfLines={1}>
+            {student.full_name || student.username || "Student"}
+          </Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Level</Text>
+              <Text style={styles.statValue}>{student.current_level || 1}</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Stages</Text>
+              <Text style={styles.statValue}>{student.totalStages}</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Score</Text>
+              <Text style={styles.statValue}>{student.total_score || 0}</Text>
+            </View>
+          </View>
+
+          {/* Progress bar */}
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressBar}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  { width: `${student.progress}%` },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressText}>{student.progress}%</Text>
+          </View>
+        </View>
+
+        {/* Arrow indicator */}
+        <Text style={styles.arrowIcon}>→</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -660,18 +721,13 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: scale(20),
+  flatListContent: {
+    paddingHorizontal: scale(20),
     paddingBottom: verticalScale(40),
-  },
-  section: {
-    marginBottom: verticalScale(24),
   },
   sectionHeader: {
     marginBottom: verticalScale(16),
+    marginTop: verticalScale(8),
   },
   sectionTitle: {
     fontFamily: "Poppins-Bold",

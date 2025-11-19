@@ -22,10 +22,11 @@ const moderateScale = (size, factor = 0.5) =>
   size + (scale(size) - size) * factor;
 
 export default function Dialogue({ route, navigation }) {
-  const { selectedCharacter = 0 } = route.params || {};
+  const { selectedCharacter = 0, backgroundImage } = route.params || {};
   const [currentDialogue, setCurrentDialogue] = useState(0);
   const [userName, setUserName] = useState("Adventurer");
 
+  const [showDialogue, setShowDialogue] = useState(false);
   const dialogueOpacity = useRef(new Animated.Value(0)).current;
   const dialogueScale = useRef(new Animated.Value(0.9)).current;
   const characterSlide = useRef(new Animated.Value(100)).current;
@@ -33,6 +34,7 @@ export default function Dialogue({ route, navigation }) {
   const continueTextOpacity = useRef(new Animated.Value(0)).current;
   const sparkleAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const tapPromptOpacity = useRef(new Animated.Value(0)).current;
 
   const characters = [
     require("../assets/chara1.png"),
@@ -42,6 +44,10 @@ export default function Dialogue({ route, navigation }) {
     require("../assets/chara5.png"),
     require("../assets/chara6.png"),
   ];
+
+  // Use the backgroundImage from route params, fallback to map 1.png
+  const currentBackgroundImage =
+    backgroundImage || require("../assets/map 1.png");
 
   const dialogues = route.params?.dialogueText
     ? [
@@ -63,17 +69,30 @@ export default function Dialogue({ route, navigation }) {
 
   useEffect(() => {
     loadUserName();
-    animateDialogueIn();
-    startCharacterBounce();
     startSparkleAnimation();
     startPulseAnimation();
+
+    // Show tap prompt after a brief delay
+    setTimeout(() => {
+      Animated.timing(tapPromptOpacity, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }).start();
+    }, 1000);
   }, []);
 
   useEffect(() => {
-    if (currentDialogue > 0) {
-      animateDialogueIn();
+    if (showDialogue) {
+      if (currentDialogue > 0) {
+        animateDialogueIn();
+      } else {
+        // First time showing dialogue
+        animateDialogueIn();
+        startCharacterBounce();
+      }
     }
-  }, [currentDialogue]);
+  }, [currentDialogue, showDialogue]);
 
   const loadUserName = async () => {
     try {
@@ -182,6 +201,17 @@ export default function Dialogue({ route, navigation }) {
     ).start();
   };
 
+  const handleInitialTap = () => {
+    // Hide tap prompt and show dialogue
+    Animated.timing(tapPromptOpacity, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowDialogue(true);
+    });
+  };
+
   const handleContinue = () => {
     if (currentDialogue < dialogues.length - 1) {
       Animated.parallel([
@@ -249,14 +279,96 @@ export default function Dialogue({ route, navigation }) {
         backgroundColor="transparent"
         barStyle="light-content"
       />
-      {currentDialogue < dialogues.length - 1 ? (
+      {!showDialogue ? (
+        // Initial background view - show ONLY background with tap prompt
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={handleInitialTap}
+          style={styles.container}
+        >
+          <ImageBackground
+            source={currentBackgroundImage}
+            style={styles.background}
+            resizeMode="cover"
+          >
+            {/* Enhanced gradient overlay */}
+            <View style={styles.gradientOverlay} />
+
+            {/* Enhanced sparkle effects */}
+            <Animated.View
+              style={[
+                styles.sparkle,
+                {
+                  top: verticalScale(120),
+                  left: scale(40),
+                  opacity: sparkleOpacity,
+                  transform: [
+                    { scale: sparkleScale },
+                    { rotate: sparkleRotate },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.sparkleText}>✨</Text>
+            </Animated.View>
+            <Animated.View
+              style={[
+                styles.sparkle,
+                {
+                  top: verticalScale(200),
+                  right: scale(30),
+                  opacity: sparkleOpacity,
+                  transform: [
+                    { scale: sparkleScale },
+                    { rotate: sparkleRotate },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.sparkleText}>⭐</Text>
+            </Animated.View>
+            <Animated.View
+              style={[
+                styles.sparkle,
+                {
+                  top: verticalScale(350),
+                  left: scale(60),
+                  opacity: sparkleOpacity,
+                  transform: [{ scale: sparkleScale }],
+                },
+              ]}
+            >
+              <Text style={styles.sparkleText}>💫</Text>
+            </Animated.View>
+
+            {/* Initial tap prompt - centered on screen */}
+            <Animated.View
+              style={[
+                styles.initialTapPromptContainer,
+                {
+                  opacity: tapPromptOpacity,
+                },
+              ]}
+            >
+              <Animated.View
+                style={[
+                  styles.initialTapPromptBox,
+                  { transform: [{ scale: pulseAnim }] },
+                ]}
+              >
+                <Text style={styles.initialTapPromptText}>👆 Tap to start</Text>
+              </Animated.View>
+            </Animated.View>
+          </ImageBackground>
+        </TouchableOpacity>
+      ) : currentDialogue < dialogues.length - 1 ? (
         <TouchableOpacity
           activeOpacity={1}
           onPress={handleContinue}
           style={styles.container}
         >
           <ImageBackground
-            source={require("../assets/map 1.png")}
+            source={currentBackgroundImage}
             style={styles.background}
             resizeMode="cover"
           >
@@ -406,8 +518,9 @@ export default function Dialogue({ route, navigation }) {
           </ImageBackground>
         </TouchableOpacity>
       ) : (
+        // Final dialogue with "Let's Go" button
         <ImageBackground
-          source={require("../assets/map 1.png")}
+          source={currentBackgroundImage}
           style={styles.background}
           resizeMode="cover"
         >
@@ -761,5 +874,38 @@ const styles = StyleSheet.create({
   },
   sparkleText: {
     fontSize: moderateScale(32),
+  },
+  initialTapPromptContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  initialTapPromptBox: {
+    backgroundColor: "rgba(255, 168, 92, 0.95)",
+    paddingVertical: verticalScale(16),
+    paddingHorizontal: scale(32),
+    borderRadius: moderateScale(30),
+    elevation: 15,
+    shadowColor: "#FFA85C",
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 6 },
+    borderWidth: moderateScale(4),
+    borderColor: "#fff",
+  },
+  initialTapPromptText: {
+    color: "#fff",
+    fontFamily: "Poppins-Bold",
+    fontSize: moderateScale(20),
+    textAlign: "center",
+    letterSpacing: 0.5,
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
   },
 });

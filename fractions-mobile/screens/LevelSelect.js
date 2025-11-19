@@ -93,8 +93,8 @@ const BurgerMenu = ({
             <Text style={styles.menuItemText}>Reset Progress</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.menuItem} 
+          <TouchableOpacity
+            style={styles.menuItem}
             onPress={() => {
               console.log("[BurgerMenu] Logout button pressed");
               onLogout();
@@ -193,6 +193,23 @@ export default function AdventureGame({ navigation, route }) {
 
   // Get level background images
   const getLevelBackgroundImage = (levelNum) => {
+    try {
+      switch (levelNum) {
+        case 1:
+          return require("../assets/foodforest.jpg");
+        case 2:
+          return require("../assets/potionriver.jpg");
+        case 3:
+          return require("../assets/brokenhouses.jpg");
+        default:
+          return null;
+      }
+    } catch (e) {
+      return null;
+    }
+  };
+  // Get dialogue background images
+  const getDialogueBackgroundImage = (levelNum) => {
     try {
       switch (levelNum) {
         case 1:
@@ -318,10 +335,10 @@ export default function AdventureGame({ navigation, route }) {
     console.log("[Logout] User confirmed logout");
     setShowLogoutConfirm(false);
     setMenuOpen(false);
-    
+
     try {
       console.log("[Logout] Starting logout process...");
-      
+
       // Stop background music if available
       if (musicContext?.backgroundMusic) {
         console.log("[Logout] Stopping background music...");
@@ -347,7 +364,7 @@ export default function AdventureGame({ navigation, route }) {
           console.warn("[Logout] Error stopping battle music:", musicError);
         }
       }
-      
+
       // Sign out from Supabase first
       if (supabase) {
         console.log("[Logout] Signing out from Supabase...");
@@ -358,7 +375,7 @@ export default function AdventureGame({ navigation, route }) {
           console.log("[Logout] Supabase signOut successful");
         }
       }
-      
+
       // Clear all local user data and cache
       console.log("[Logout] Clearing local storage...");
       await AsyncStorage.multiRemove([
@@ -367,16 +384,16 @@ export default function AdventureGame({ navigation, route }) {
         "character_index",
         "levelProgress",
       ]);
-      
+
       // Optional: Clear answer stats for privacy
       for (let levelGroup = 1; levelGroup <= 3; levelGroup++) {
         for (let stage = 1; stage <= 2; stage++) {
           await AsyncStorage.removeItem(`@answer_stats_${levelGroup}_${stage}`);
         }
       }
-      
+
       console.log("[Logout] Logout successful, navigating to Login...");
-      
+
       // Navigate to login screen with a small delay to ensure cleanup completes
       setTimeout(() => {
         if (navigation) {
@@ -389,7 +406,6 @@ export default function AdventureGame({ navigation, route }) {
           console.warn("[Logout] Navigation not available");
         }
       }, 100);
-      
     } catch (error) {
       console.error("[Logout] Error during logout:", error);
       Alert.alert(
@@ -487,16 +503,19 @@ export default function AdventureGame({ navigation, route }) {
           dialogueText:
             "These food trees dropped their slices! Let's put them together to make whole pizzas again!",
           subtext: "",
+          backgroundImage: require("../assets/foodforest.jpg"),
         },
         2: {
           dialogueText:
             "Oh, no! this river is filled with potions! Let's clean it, by pouring substances. Let's add the right fractions to create a perfect cleaning substance!",
           subtext: "",
+          backgroundImage: require("../assets/potionriver.jpg"),
         },
         3: {
           dialogueText:
             "Uh-oh…. The houses are still broken. To make the neighborhood whole again, we need to add dissimilar fractions.",
           subtext: "",
+          backgroundImage: require("../assets/brokenhouses.jpg"),
         },
       };
 
@@ -534,6 +553,48 @@ export default function AdventureGame({ navigation, route }) {
       );
     }
   };
+
+  const checkForEndingDialogue = async () => {
+    // Check if all 3 levels are completed
+    const allLevelsComplete =
+      completedLevels[1] && completedLevels[2] && completedLevels[3];
+
+    if (allLevelsComplete && navigation) {
+      // Check if user has already seen the ending
+      const hasSeenEnding = await AsyncStorage.getItem("hasSeenEnding");
+
+      if (!hasSeenEnding) {
+        // Mark as seen
+        await AsyncStorage.setItem("hasSeenEnding", "true");
+
+        // Navigate to first ending dialogue
+        navigation.navigate("Dialogue", {
+          selectedCharacter: characterIndex,
+          dialogueText:
+            "Yuhooo! You did it! You built the house and restored the whole neighborhood. You are an official fractions hero!",
+          subtext: "",
+          backgroundImage: require("../assets/1stEnd.png"),
+          nextScreen: "Dialogue",
+          nextScreenParams: {
+            selectedCharacter: characterIndex,
+            dialogueText:
+              "Thanks to you, everything is whole again! You've mastered adding dissimilar fractions. See you next time for a brand new adventure!",
+            subtext: "",
+            backgroundImage: require("../assets/2ndEnd.png"),
+            nextScreen: "LevelSelect",
+            nextScreenParams: {
+              selectedCharacter: characterIndex,
+            },
+          },
+        });
+      }
+    }
+  };
+  useEffect(() => {
+    if (!isLoading) {
+      checkForEndingDialogue();
+    }
+  }, [completedLevels, isLoading]);
 
   function isLevelGroupUnlocked(levelGroup) {
     if (levelGroup === 1) return true;
@@ -866,11 +927,6 @@ export default function AdventureGame({ navigation, route }) {
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{100 - userStats.accuracy}%</Text>
-              <Text style={styles.statLabel}>Mistakes</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
               <Text style={styles.statNumber}>{userStats.totalAttempts}</Text>
               <Text style={styles.statLabel}>Attempts</Text>
             </View>
@@ -885,12 +941,12 @@ export default function AdventureGame({ navigation, route }) {
           onRequestClose={() => setShowLogoutConfirm(false)}
           statusBarTranslucent={true}
         >
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.logoutModalOverlay}
             activeOpacity={1}
             onPress={() => setShowLogoutConfirm(false)}
           >
-            <TouchableOpacity 
+            <TouchableOpacity
               activeOpacity={1}
               onPress={(e) => e.stopPropagation()}
             >
